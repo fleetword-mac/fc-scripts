@@ -573,12 +573,12 @@ fi
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow "$SSH_PORT"/tcp
+if [[ "$CURRENT_SSH_PORT" != "$SSH_PORT" ]]; then
+  ufw allow "$CURRENT_SSH_PORT"/tcp
+fi
 if prompt_yes_no "Allow HTTP/HTTPS through UFW?" "Y"; then
   ufw allow 80/tcp
   ufw allow 443/tcp
-fi
-if [[ "$SSH_PORT" != "22" ]]; then
-  ufw deny 22/tcp
 fi
 ufw --force enable
 selected "UFW configured."
@@ -704,5 +704,9 @@ if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
   summary_command "ssh -i /path/to/id_ed25519 -p $SSH_PORT ${LOGIN_USER}@${SERVER_IP}"
 else
   summary_command "ssh -p $SSH_PORT root@${SERVER_IP}"
+fi
+if [[ "$CURRENT_SSH_PORT" != "$SSH_PORT" ]]; then
+  summary_step "6. After verifying the new SSH login works, you can close the old SSH port if needed:"
+  summary_command "ufw deny ${CURRENT_SSH_PORT}/tcp"
 fi
 echo "================================="
