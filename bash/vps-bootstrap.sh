@@ -8,6 +8,10 @@ export PATH="$PATH:/usr/sbin:/sbin"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_HOME="$(getent passwd root | cut -d: -f6)"
+SSHD="/etc/ssh/sshd_config"
+SSHD_INCLUDE='Include /etc/ssh/sshd_config.d/*.conf'
+SSHD_DROPIN_DIR="/etc/ssh/sshd_config.d"
+SSHD_DROPIN_FILE="${SSHD_DROPIN_DIR}/fc-ssh.conf"
 GENERATED_KEY_DIR=""
 GENERATED_PRIVATE_KEY=""
 GENERATED_PUBLIC_KEY=""
@@ -94,16 +98,24 @@ prompt_yes_no() {
 }
 
 prompt_ssh_auth_mode() {
+  local default_mode="${1:-key}"
   local mode_choice
+  local default_choice="2"
+
+  case "$default_mode" in
+    password) default_choice="1" ;;
+    key) default_choice="2" ;;
+    both) default_choice="3" ;;
+  esac
 
   while true; do
     prompt_section "SSH Authentication Modes"
     prompt_option "1. Password - Keep SSH password login enabled and do not require a public key."
     prompt_option "2. SSH Key - Use public key authentication only and disable SSH password login."
     prompt_option "3. Both - Allow both SSH password login and public key authentication."
-    prompt_line "Choose SSH authentication mode ${C_CHOICE}[1/2/3]${C_RESET} ${C_CHOICE}(default: 2)${C_RESET}: "
+    prompt_line "Choose SSH authentication mode ${C_CHOICE}[1/2/3]${C_RESET} ${C_CHOICE}(default: ${default_choice})${C_RESET}: "
     read -r mode_choice
-    mode_choice="${mode_choice:-2}"
+    mode_choice="${mode_choice:-$default_choice}"
 
     case "$mode_choice" in
       1)
@@ -154,6 +166,40 @@ prompt_input() {
   prompt_line "$prompt"
   read -r reply
   printf '%s' "$reply"
+}
+
+read_sshd_option() {
+  local file="$1"
+  local key="$2"
+  local default="$3"
+  local value=""
+
+  if [[ -f "$file" ]]; then
+    value="$(awk -v key="$key" '$1 == key { value=$2 } END { print value }' "$file")"
+  fi
+
+  if [[ -n "$value" ]]; then
+    printf '%s' "$value"
+  else
+    printf '%s' "$default"
+  fi
+}
+
+detect_ssh_auth_mode() {
+  local file="$1"
+  local password_auth
+  local pubkey_auth
+
+  password_auth="$(read_sshd_option "$file" "PasswordAuthentication" "yes")"
+  pubkey_auth="$(read_sshd_option "$file" "PubkeyAuthentication" "yes")"
+
+  if [[ "$password_auth" == "yes" && "$pubkey_auth" == "no" ]]; then
+    printf '%s' "password"
+  elif [[ "$password_auth" == "no" && "$pubkey_auth" == "yes" ]]; then
+    printf '%s' "key"
+  else
+    printf '%s' "both"
+  fi
 }
 
 get_user_home() {
@@ -259,6 +305,12 @@ if [[ "$OS" != "ubuntu" && "$OS" != "debian" ]]; then
   exit 1
 fi
 
+CURRENT_SSH_PORT="$(read_sshd_option "$SSHD_DROPIN_FILE" "Port" "22")"
+CURRENT_ROOT_LOGIN="$(read_sshd_option "$SSHD_DROPIN_FILE" "PermitRootLogin" "yes")"
+CURRENT_ADDRESS_FAMILY="$(read_sshd_option "$SSHD_DROPIN_FILE" "AddressFamily" "any")"
+CURRENT_SSH_AUTH_MODE="$(detect_ssh_auth_mode "$SSHD_DROPIN_FILE")"
+GENERATED_KEY_ARCHIVE="${ROOT_HOME}/generated-keys.tar.gz"
+
 info "=== Remote Server Setup ==="
 
 if prompt_yes_no "Run apt update && apt upgrade now?" "Y"; then
@@ -316,7 +368,8 @@ else
   selected "Keeping existing timezone: $CURRENT_TZ"
 fi
 
-SSH_AUTH_MODE="$(prompt_ssh_auth_mode)"
+info "Current SSH auth mode: ${CURRENT_SSH_AUTH_MODE}"
+SSH_AUTH_MODE="$(prompt_ssh_auth_mode "$CURRENT_SSH_AUTH_MODE")"
 selected "SSH authentication mode: $SSH_AUTH_MODE"
 
 CREATE_USER="N"
@@ -359,7 +412,11 @@ fi
 
 DISABLE_ROOT="N"
 if [[ "$CREATE_USER" == "Y" ]]; then
-  if prompt_yes_no "Disable root SSH login?" "Y"; then
+  ROOT_DISABLE_DEFAULT="N"
+  if [[ "$CURRENT_ROOT_LOGIN" == "no" ]]; then
+    ROOT_DISABLE_DEFAULT="Y"
+  fi
+  if prompt_yes_no "Disable root SSH login?" "$ROOT_DISABLE_DEFAULT"; then
     DISABLE_ROOT="Y"
   fi
 else
@@ -406,7 +463,8 @@ if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
   done
 fi
 
-SSH_PORT=22
+SSH_PORT="$CURRENT_SSH_PORT"
+info "Current SSH port: ${CURRENT_SSH_PORT}"
 if prompt_yes_no "Change SSH port?" "N"; then
   while true; do
     PORT="$(prompt_input "Enter new SSH port ${C_CHOICE}[1024-65535]${C_RESET}: ")"
@@ -418,17 +476,16 @@ if prompt_yes_no "Change SSH port?" "N"; then
   done
 fi
 
-DISABLE_IPV6="Y"
-if prompt_yes_no "Disable IPv6 for SSH?" "Y"; then
+DISABLE_IPV6="N"
+IPV6_DISABLE_DEFAULT="N"
+if [[ "$CURRENT_ADDRESS_FAMILY" == "inet" ]]; then
+  IPV6_DISABLE_DEFAULT="Y"
+fi
+if prompt_yes_no "Disable IPv6 for SSH?" "$IPV6_DISABLE_DEFAULT"; then
   DISABLE_IPV6="Y"
 else
   DISABLE_IPV6="N"
 fi
-
-SSHD="/etc/ssh/sshd_config"
-SSHD_INCLUDE='Include /etc/ssh/sshd_config.d/*.conf'
-SSHD_DROPIN_DIR="/etc/ssh/sshd_config.d"
-SSHD_DROPIN_FILE="${SSHD_DROPIN_DIR}/fc-ssh.conf"
 
 cp "$SSHD" "$SSHD.bak.$(date +%Y%m%d-%H%M%S)"
 
@@ -568,9 +625,15 @@ if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
   summary_item "SSH key installed for: ${KEY_INSTALL_TARGETS[*]}"
 fi
 
-if [[ -n "$GENERATED_KEY_DIR" ]]; then
+if [[ -f "$GENERATED_KEY_ARCHIVE" ]]; then
   summary_item "Generated key archive: $GENERATED_KEY_ARCHIVE"
 fi
+
+summary_heading "Current Detected State"
+summary_item "Detected SSH auth mode: $CURRENT_SSH_AUTH_MODE"
+summary_item "Detected SSH port: $CURRENT_SSH_PORT"
+summary_item "Detected root SSH login: $CURRENT_ROOT_LOGIN"
+summary_item "Detected SSH address family: $CURRENT_ADDRESS_FAMILY"
 
 summary_heading "Important"
 warn "Test SSH access before closing this session."
@@ -592,7 +655,7 @@ if [[ "$CREATE_USER" == "Y" ]]; then
   summary_item "Re-login before using Docker so new group membership applies"
 fi
 summary_item "Inspect SSH drop-in if needed: $SSHD_DROPIN_FILE"
-if [[ -n "$GENERATED_KEY_ARCHIVE" ]]; then
+if [[ -f "$GENERATED_KEY_ARCHIVE" ]]; then
   summary_item "Download generated keys: scp -P $SSH_PORT root@YOUR_SERVER_IP:$GENERATED_KEY_ARCHIVE ."
   summary_item "Delete archive after verification: rm $GENERATED_KEY_ARCHIVE"
 fi
