@@ -384,7 +384,7 @@ TZ="$CURRENT_TZ"
 info "Current Timezone: ${CURRENT_TZ}"
 if prompt_yes_no "Change timezone?" "N"; then
   while true; do
-    TZ="$(prompt_input "Enter timezone ${C_CHOICE}[type back to keep ${CURRENT_TZ}]${C_RESET}: ")"
+    TZ="$(prompt_input "Enter timezone ${C_CHOICE}[type 'back' to keep ${CURRENT_TZ}]${C_RESET}: ")"
 
     if [[ "$TZ" == "back" || "$TZ" == "BACK" ]]; then
       TZ="$CURRENT_TZ"
@@ -556,6 +556,8 @@ PermitEmptyPasswords no
 AddressFamily $ADDRESS_FAMILY
 PermitRootLogin $PERMIT_ROOT_LOGIN
 EOF
+
+mkdir -p /run/sshd
 
 if command -v sshd >/dev/null 2>&1; then
   sshd -t
