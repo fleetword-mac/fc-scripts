@@ -59,6 +59,10 @@ summary_warn() {
   printf '%s! %s%s\n' "$C_WARN" "$1" "$C_RESET"
 }
 
+summary_attention_heading() {
+  printf '\n%s%s%s\n' "$C_CHOICE" "$1" "$C_RESET"
+}
+
 prompt_line() {
   local text="$1"
   printf '%s%s%s' "$C_PROMPT" "$text" "$C_RESET" >&2
@@ -633,7 +637,8 @@ if [[ -f "$GENERATED_KEY_ARCHIVE" ]]; then
   summary_item "Generated key archive: $GENERATED_KEY_ARCHIVE"
 fi
 
-summary_heading "Current Detected State"
+summary_attention_heading "Current Detected State"
+summary_warn "This reflects the SSH configuration currently active before restart. Your new SSH settings will only take effect after you restart the server."
 summary_item "Detected SSH auth mode: $CURRENT_SSH_AUTH_MODE"
 summary_item "Detected SSH port: $CURRENT_SSH_PORT"
 summary_item "Detected root SSH login: $CURRENT_ROOT_LOGIN"
@@ -648,21 +653,21 @@ if [[ "${#INSTALLED_ITEMS[@]}" -gt 0 ]]; then
     summary_item "$item"
   done
 fi
-summary_heading "Next Steps"
-if [[ "$CREATE_USER" == "Y" ]]; then
-  summary_item "Reconnect using user: $USERNAME"
-else
-  summary_item "Reconnect using root"
-fi
-summary_item "Confirm SSH works on port: $SSH_PORT"
-if [[ "$CREATE_USER" == "Y" ]]; then
-  summary_item "Re-login before using Docker so new group membership applies"
-fi
-summary_item "Inspect SSH drop-in if needed: $SSHD_DROPIN_FILE"
+summary_attention_heading "Next Steps"
 if [[ -f "$GENERATED_KEY_ARCHIVE" ]]; then
-  summary_warn "Run the next two commands from a different local terminal, not from inside the current SSH session."
-  summary_item "Download generated keys: scp -P $SSH_PORT root@YOUR_SERVER_IP:$GENERATED_KEY_ARCHIVE ."
-  summary_item "Delete archive after verification: ssh -p $SSH_PORT root@YOUR_SERVER_IP 'rm -f $GENERATED_KEY_ARCHIVE'"
+  summary_warn "Run the next command from a different local terminal, not from inside the current SSH session."
+  summary_item "1. Download and remove generated keys: scp -P $SSH_PORT root@YOUR_SERVER_IP:$GENERATED_KEY_ARCHIVE . && ssh -p $SSH_PORT root@YOUR_SERVER_IP 'rm -f $GENERATED_KEY_ARCHIVE'"
+  summary_item "2. If that command succeeds, SSH on port $SSH_PORT is reachable."
+else
+  summary_item "1. Open a different terminal on your local machine and test SSH on port $SSH_PORT."
 fi
-summary_warn "After SSH access is confirmed, reboot the server: reboot"
+summary_item "3. Confirm by logging in again and inspect the SSH drop-in if needed: $SSHD_DROPIN_FILE"
+if [[ "$CREATE_USER" == "Y" ]]; then
+  summary_item "4. If everything looks correct, run: reboot"
+  summary_item "5. After reboot, log in as $USERNAME using the configured SSH method."
+  summary_item "6. Re-login before using Docker so new group membership applies."
+else
+  summary_item "4. If everything looks correct, run: reboot"
+  summary_item "5. After reboot, log in as root using the configured SSH method."
+fi
 echo "================================="
