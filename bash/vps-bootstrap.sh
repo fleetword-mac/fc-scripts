@@ -59,8 +59,10 @@ prompt_yes_no() {
 
     case "$reply" in
       Y|y|N|n)
-        [[ "$reply" =~ ^[Yy]$ ]]
-        return 0
+        if [[ "$reply" =~ ^[Yy]$ ]]; then
+          return 0
+        fi
+        return 1
         ;;
       *)
         warn "Please enter Y or N."
