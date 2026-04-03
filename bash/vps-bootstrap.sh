@@ -212,6 +212,15 @@ if [[ "$CREATE_USER" == "Y" ]]; then
   TARGET_USER="$USERNAME"
 fi
 
+DISABLE_ROOT="N"
+if [[ "$CREATE_USER" == "Y" ]]; then
+  if prompt_yes_no "Disable root SSH login? [Y/n]: " "Y"; then
+    DISABLE_ROOT="Y"
+  fi
+else
+  echo "No non-root user exists. Root SSH login will remain enabled."
+fi
+
 if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
   if [[ "$CREATE_USER" == "Y" ]]; then
     KEY_INSTALL_TARGETS+=("$USERNAME")
@@ -269,15 +278,6 @@ if prompt_yes_no "Disable IPv6 for SSH? [Y/n]: " "Y"; then
   DISABLE_IPV6="Y"
 else
   DISABLE_IPV6="N"
-fi
-
-DISABLE_ROOT="N"
-if [[ "$CREATE_USER" == "Y" ]]; then
-  if prompt_yes_no "Disable root SSH login? [Y/n]: " "Y"; then
-    DISABLE_ROOT="Y"
-  fi
-else
-  echo "No non-root user exists. Root SSH login will remain enabled."
 fi
 
 SSHD="/etc/ssh/sshd_config"
