@@ -210,6 +210,24 @@ detect_ssh_auth_mode() {
   fi
 }
 
+detect_server_ip() {
+  local detected_ip=""
+
+  if command -v ip >/dev/null 2>&1; then
+    detected_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i == "src") {print $(i+1); exit}}')"
+  fi
+
+  if [[ -z "$detected_ip" ]] && command -v hostname >/dev/null 2>&1; then
+    detected_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  fi
+
+  if [[ -n "$detected_ip" ]]; then
+    printf '%s' "$detected_ip"
+  else
+    printf '%s' "YOUR_SERVER_IP"
+  fi
+}
+
 get_user_home() {
   getent passwd "$1" | cut -d: -f6
 }
@@ -318,6 +336,7 @@ CURRENT_ROOT_LOGIN="$(read_sshd_option "$SSHD_DROPIN_FILE" "PermitRootLogin" "ye
 CURRENT_ADDRESS_FAMILY="$(read_sshd_option "$SSHD_DROPIN_FILE" "AddressFamily" "any")"
 CURRENT_SSH_AUTH_MODE="$(detect_ssh_auth_mode "$SSHD_DROPIN_FILE")"
 GENERATED_KEY_ARCHIVE="${ROOT_HOME}/generated-keys.tar.gz"
+SERVER_IP="$(detect_server_ip)"
 
 info "=== Remote Server Setup ==="
 
@@ -604,8 +623,7 @@ fi
 systemctl restart ssh || systemctl restart sshd
 
 echo "================================="
-echo "Setup complete."
-echo ""
+summary_attention_heading "Setup Complete"
 summary_heading "Configuration Summary"
 summary_item "SSH auth mode: $SSH_AUTH_MODE"
 summary_item "SSH port: $SSH_PORT"
@@ -656,7 +674,7 @@ fi
 summary_attention_heading "Next Steps"
 if [[ -f "$GENERATED_KEY_ARCHIVE" ]]; then
   summary_warn "Run the next command from a different local terminal, not from inside the current SSH session."
-  summary_item "1. Download and remove generated keys: scp -P $SSH_PORT root@YOUR_SERVER_IP:$GENERATED_KEY_ARCHIVE . && ssh -p $SSH_PORT root@YOUR_SERVER_IP 'rm -f $GENERATED_KEY_ARCHIVE'"
+  summary_item "1. Download and remove generated keys: scp -P $SSH_PORT root@${SERVER_IP}:$GENERATED_KEY_ARCHIVE . && ssh -p $SSH_PORT root@${SERVER_IP} 'rm -f $GENERATED_KEY_ARCHIVE'"
   summary_item "2. If that command succeeds, SSH on port $SSH_PORT is reachable."
 else
   summary_item "1. Open a different terminal on your local machine and test SSH on port $SSH_PORT."
@@ -665,7 +683,6 @@ summary_item "3. Confirm by logging in again and inspect the SSH drop-in if need
 if [[ "$CREATE_USER" == "Y" ]]; then
   summary_item "4. If everything looks correct, run: reboot"
   summary_item "5. After reboot, log in as $USERNAME using the configured SSH method."
-  summary_item "6. Re-login before using Docker so new group membership applies."
 else
   summary_item "4. If everything looks correct, run: reboot"
   summary_item "5. After reboot, log in as root using the configured SSH method."
