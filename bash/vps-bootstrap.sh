@@ -117,9 +117,10 @@ prompt_key_setup_mode() {
 
   while true; do
     prompt_section "SSH Key Setup"
-    prompt_option "1. Use existing public key - Paste a public key that already exists on your local machine."
-    prompt_option "2. Generate a temporary keypair on this server - Create a temporary keypair on the VPS, package it as an archive, and download it after setup."
-    prompt_line "Choose key setup mode ${C_CHOICE}[1/2]${C_RESET} ${C_CHOICE}(default: 1)${C_RESET}: "
+    prompt_option "1. Use an existing public key - Paste a public key that already exists on your local machine."
+    prompt_option "2. Generate a new keypair - Create a temporary keypair on the VPS, package it as an archive, and download it after setup."
+    prompt_option "B. Back - Return to this menu if you want to choose a different key setup option."
+    prompt_line "Choose key setup mode ${C_CHOICE}[1/2/B]${C_RESET} ${C_CHOICE}(default: 1)${C_RESET}: "
     read -r key_choice
     key_choice="${key_choice:-1}"
 
@@ -128,8 +129,12 @@ prompt_key_setup_mode() {
         echo "$key_choice"
         return 0
         ;;
+      B|b)
+        echo "back"
+        return 0
+        ;;
       *)
-        warn "Please choose 1 or 2."
+        warn "Please choose 1, 2, or B."
         ;;
     esac
   done
@@ -343,8 +348,11 @@ if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
     KEY_MODE="$(prompt_key_setup_mode)"
 
     if [[ "$KEY_MODE" == "1" ]]; then
-      info "Paste SSH public key:"
+      info "Paste SSH public key, or type 'back' to return to the previous menu:"
       read -r PUBKEY
+      if [[ "$PUBKEY" == "back" || "$PUBKEY" == "BACK" ]]; then
+        continue
+      fi
       if [[ -z "$PUBKEY" || ! "$PUBKEY" =~ ^ssh- ]]; then
         warn "Invalid SSH public key."
         continue
@@ -360,6 +368,8 @@ if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
         install_public_key "$KEY_TARGET" "$PUBKEY"
       done
       break
+    elif [[ "$KEY_MODE" == "back" ]]; then
+      continue
     fi
   done
 fi
