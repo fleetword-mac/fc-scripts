@@ -186,6 +186,10 @@ generate_server_keypair() {
   archive_file="$ROOT_HOME/generated-keys.tar.gz"
   archive_entry="generated-keys/${server_label}-${timestamp}"
 
+  if [[ -f "$archive_file" ]]; then
+    warn "Existing archive will be overwritten: $archive_file"
+  fi
+
   mkdir -p "$output_dir"
   ssh-keygen -t ed25519 -N "" -C "${target_user}@${server_label}" -f "$private_key" >/dev/null
 
