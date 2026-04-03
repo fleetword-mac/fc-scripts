@@ -13,6 +13,7 @@ GENERATED_PRIVATE_KEY=""
 GENERATED_PUBLIC_KEY=""
 GENERATED_KEY_ARCHIVE=""
 KEY_INSTALL_TARGETS=()
+INSTALLED_ITEMS=()
 
 if [[ -t 1 ]]; then
   C_RESET=$'\033[0m'
@@ -236,6 +237,7 @@ fi
 
 if prompt_yes_no "Install common utility packages (git, curl, wget, vim, htop, unzip)? [Y/n]: " "Y"; then
   apt install -y git curl wget vim htop unzip
+  INSTALLED_ITEMS+=("Common utilities: git curl wget vim htop unzip")
 fi
 
 if prompt_yes_no "Change root password? [Y/n]: " "Y"; then
@@ -297,6 +299,7 @@ if prompt_yes_no "Create non-root user? [Y/n]: " "Y"; then
     ADD_SUDO="Y"
     if ! command -v sudo >/dev/null 2>&1; then
       apt install -y sudo
+      INSTALLED_ITEMS+=("sudo")
     fi
     usermod -aG sudo "$USERNAME"
   fi
@@ -418,6 +421,7 @@ fi
 
 if ! command -v ufw >/dev/null 2>&1; then
   apt install -y ufw
+  INSTALLED_ITEMS+=("ufw")
 fi
 
 ufw default deny incoming
@@ -438,6 +442,7 @@ if command -v docker >/dev/null 2>&1; then
 else
   if prompt_yes_no "Install Docker? [Y/n]: " "Y"; then
     apt install -y ca-certificates curl gnupg
+    INSTALLED_ITEMS+=("Docker prerequisites: ca-certificates curl gnupg")
     install -m 0755 -d /etc/apt/keyrings
 
     if [[ "$OS" == "ubuntu" ]]; then
@@ -464,6 +469,7 @@ EOF
 
     apt update
     apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    INSTALLED_ITEMS+=("Docker: docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin")
 
     if [[ "$CREATE_USER" == "Y" ]]; then
       usermod -aG docker "$USERNAME"
@@ -518,6 +524,13 @@ echo "IMPORTANT:"
 echo "- Test SSH access before closing this session."
 echo "- If you generated keys on the server, copy the archive off immediately and delete it from the VPS after verification."
 echo "- Reboot recommended: run 'reboot'"
+if [[ "${#INSTALLED_ITEMS[@]}" -gt 0 ]]; then
+  echo ""
+  echo "INSTALLED DURING THIS RUN:"
+  for item in "${INSTALLED_ITEMS[@]}"; do
+    echo "- $item"
+  done
+fi
 echo ""
 echo "NEXT STEPS:"
 if [[ "$CREATE_USER" == "Y" ]]; then
