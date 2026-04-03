@@ -193,7 +193,7 @@ generate_server_keypair() {
 
   if [[ -f "$archive_file" ]]; then
     warn "Existing archive found: $archive_file"
-    if ! prompt_yes_no "Overwrite existing generated-keys.tar.gz? [Y/n]: " "Y"; then
+    if ! prompt_yes_no "Overwrite existing generated-keys.tar.gz?" "Y"; then
       warn "Keypair generation cancelled. Returning to SSH key setup."
       return 1
     fi
@@ -258,17 +258,17 @@ fi
 
 info "=== Remote Server Setup ==="
 
-if prompt_yes_no "Run apt update && apt upgrade now? [Y/n]: " "Y"; then
+if prompt_yes_no "Run apt update && apt upgrade now?" "Y"; then
   apt update
   DEBIAN_FRONTEND=noninteractive apt upgrade -y
 fi
 
-if prompt_yes_no "Install common utility packages (git, curl, wget, vim, htop, unzip)? [Y/n]: " "Y"; then
+if prompt_yes_no "Install common utility packages (git, curl, wget, vim, htop, unzip)?" "Y"; then
   apt install -y git curl wget vim htop unzip
   INSTALLED_ITEMS+=("Common utilities: git curl wget vim htop unzip")
 fi
 
-if prompt_yes_no "Change root password? [Y/n]: " "Y"; then
+if prompt_yes_no "Change root password?" "Y"; then
   while true; do
     read -r -s -p "Enter new root password (min 8 chars): " P1
     echo
@@ -321,7 +321,7 @@ USERNAME=""
 ADD_SUDO="N"
 
 echo "Using a non-root user is strongly recommended for security."
-if prompt_yes_no "Create non-root user? [Y/n]: " "Y"; then
+if prompt_yes_no "Create non-root user?" "Y"; then
   CREATE_USER="Y"
 
   while true; do
@@ -330,7 +330,7 @@ if prompt_yes_no "Create non-root user? [Y/n]: " "Y"; then
     if [[ -z "$USERNAME" ]]; then
       warn "Username cannot be empty."
     elif id "$USERNAME" >/dev/null 2>&1; then
-      if prompt_yes_no "User already exists. Reuse this user? [Y/n]: " "Y"; then
+      if prompt_yes_no "User already exists. Reuse this user?" "Y"; then
         break
       fi
     else
@@ -339,7 +339,7 @@ if prompt_yes_no "Create non-root user? [Y/n]: " "Y"; then
     fi
   done
 
-  if prompt_yes_no "Add user to sudo group? [Y/n]: " "Y"; then
+  if prompt_yes_no "Add user to sudo group?" "Y"; then
     ADD_SUDO="Y"
     if ! command -v sudo >/dev/null 2>&1; then
       apt install -y sudo
@@ -356,7 +356,7 @@ fi
 
 DISABLE_ROOT="N"
 if [[ "$CREATE_USER" == "Y" ]]; then
-  if prompt_yes_no "Disable root SSH login? [Y/n]: " "Y"; then
+  if prompt_yes_no "Disable root SSH login?" "Y"; then
     DISABLE_ROOT="Y"
   fi
 else
@@ -406,7 +406,7 @@ if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
 fi
 
 SSH_PORT=22
-if prompt_yes_no "Change SSH port? [y/N]: " "N"; then
+if prompt_yes_no "Change SSH port?" "N"; then
   while true; do
     PORT="$(prompt_input "Enter new SSH port ${C_CHOICE}[1024-65535]${C_RESET}: ")"
     if [[ "$PORT" =~ ^[0-9]+$ ]] && [[ "$PORT" -ge 1024 ]] && [[ "$PORT" -le 65535 ]]; then
@@ -418,7 +418,7 @@ if prompt_yes_no "Change SSH port? [y/N]: " "N"; then
 fi
 
 DISABLE_IPV6="Y"
-if prompt_yes_no "Disable IPv6 for SSH? [Y/n]: " "Y"; then
+if prompt_yes_no "Disable IPv6 for SSH?" "Y"; then
   DISABLE_IPV6="Y"
 else
   DISABLE_IPV6="N"
@@ -478,7 +478,7 @@ fi
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow "$SSH_PORT"/tcp
-if prompt_yes_no "Allow HTTP/HTTPS through UFW? [Y/n]: " "Y"; then
+if prompt_yes_no "Allow HTTP/HTTPS through UFW?" "Y"; then
   ufw allow 80/tcp
   ufw allow 443/tcp
 fi
@@ -491,7 +491,7 @@ selected "UFW configured."
 if command -v docker >/dev/null 2>&1; then
   info "Docker already installed."
 else
-  if prompt_yes_no "Install Docker? [Y/n]: " "Y"; then
+  if prompt_yes_no "Install Docker?" "Y"; then
     apt install -y ca-certificates curl gnupg
     INSTALLED_ITEMS+=("Docker prerequisites: ca-certificates curl gnupg")
     install -m 0755 -d /etc/apt/keyrings
