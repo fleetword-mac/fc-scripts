@@ -60,9 +60,14 @@ prompt_yes_no() {
   local prompt="$1"
   local default="${2:-Y}"
   local reply
+  local hint="[Y/n]"
+
+  if [[ "$default" =~ ^[Nn]$ ]]; then
+    hint="[y/N]"
+  fi
 
   while true; do
-    prompt_line "${prompt%: } ${C_CHOICE}[Y/n]${C_RESET} ${C_CHOICE}(default: ${default})${C_RESET}: "
+    prompt_line "${prompt%: } ${C_CHOICE}${hint}${C_RESET}: "
     read -r reply
     reply="${reply:-$default}"
 
@@ -286,7 +291,8 @@ CURRENT_TZ="$(timedatectl show --property=Timezone --value 2>/dev/null || true)"
 CURRENT_TZ="${CURRENT_TZ:-Asia/Manila}"
 TZ="$CURRENT_TZ"
 
-if prompt_yes_no "Change timezone? Current: ${CURRENT_TZ} [Y/n]: " "N"; then
+info "Current Timezone: ${CURRENT_TZ}"
+if prompt_yes_no "Change timezone?" "N"; then
   while true; do
     TZ="$(prompt_input "Enter timezone ${C_CHOICE}[type back to keep ${CURRENT_TZ}]${C_RESET}: ")"
 
