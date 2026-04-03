@@ -187,7 +187,11 @@ generate_server_keypair() {
   archive_entry="generated-keys/${server_label}-${timestamp}"
 
   if [[ -f "$archive_file" ]]; then
-    warn "Existing archive will be overwritten: $archive_file"
+    warn "Existing archive found: $archive_file"
+    if ! prompt_yes_no "Overwrite existing generated-keys.tar.gz? [Y/n]: " "Y"; then
+      warn "Keypair generation cancelled. Returning to SSH key setup."
+      return 1
+    fi
   fi
 
   mkdir -p "$output_dir"
@@ -367,7 +371,9 @@ if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
       break
     elif [[ "$KEY_MODE" == "2" ]]; then
       SERVER_LABEL="$(hostname -f 2>/dev/null || hostname)"
-      PUBKEY="$(generate_server_keypair "$TARGET_USER" "$SERVER_LABEL")"
+      if ! PUBKEY="$(generate_server_keypair "$TARGET_USER" "$SERVER_LABEL")"; then
+        continue
+      fi
       for KEY_TARGET in "${KEY_INSTALL_TARGETS[@]}"; do
         install_public_key "$KEY_TARGET" "$PUBKEY"
       done
