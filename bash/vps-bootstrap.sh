@@ -681,8 +681,12 @@ summary_heading "Important"
 summary_warn "Complete the next steps before closing this session. The new SSH configuration will not take effect until after reboot."
 summary_attention_heading "Next Steps"
 if [[ -f "$GENERATED_KEY_ARCHIVE" ]]; then
-  summary_step "1. Download and remove the generated keys. On a different terminal/shell, run the following commands:"
-  summary_command "scp -P $SSH_PORT root@${SERVER_IP}:$GENERATED_KEY_ARCHIVE . && ssh -p $SSH_PORT root@${SERVER_IP} 'rm -f $GENERATED_KEY_ARCHIVE'"
+  summary_step "1. Download and remove the generated keys using the currently active SSH port. On a different terminal/shell, run:"
+  if [[ "$CURRENT_SSH_PORT" == "22" ]]; then
+    summary_command "scp root@${SERVER_IP}:$GENERATED_KEY_ARCHIVE . && ssh root@${SERVER_IP} 'rm -f $GENERATED_KEY_ARCHIVE'"
+  else
+    summary_command "scp -P $CURRENT_SSH_PORT root@${SERVER_IP}:$GENERATED_KEY_ARCHIVE . && ssh -p $CURRENT_SSH_PORT root@${SERVER_IP} 'rm -f $GENERATED_KEY_ARCHIVE'"
+  fi
   summary_step "2. If that command succeeds, you have downloaded the key archive and removed it from the server."
 else
   summary_step "1. Open a different terminal/shell on your local machine and prepare to test the new SSH configuration after reboot."
@@ -691,7 +695,7 @@ summary_step "3. Inspect the SSH drop-in if needed:"
 summary_command "cat $SSHD_DROPIN_FILE"
 summary_step "4. If everything looks correct, reboot the system so the new SSH configuration takes effect:"
 summary_command "reboot"
-summary_step "5. After reboot, confirm by logging in again using the configured SSH method:"
+summary_step "5. After reboot, confirm by logging in again using the configured SSH method on port $SSH_PORT:"
 if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
   LOGIN_USER="root"
   if [[ "$CREATE_USER" == "Y" && "$DISABLE_ROOT" == "Y" ]]; then
