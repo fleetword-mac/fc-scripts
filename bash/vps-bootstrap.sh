@@ -7,39 +7,127 @@ trap 'echo "Error: setup failed near line $LINENO." >&2' ERR
 export PATH="$PATH:/usr/sbin:/sbin"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_HOME="$(getent passwd root | cut -d: -f6)"
 GENERATED_KEY_DIR=""
 GENERATED_PRIVATE_KEY=""
 GENERATED_PUBLIC_KEY=""
 GENERATED_KEY_ARCHIVE=""
 KEY_INSTALL_TARGETS=()
 
+if [[ -t 1 ]]; then
+  C_RESET=$'\033[0m'
+  C_PROMPT=$'\033[1;36m'
+  C_CHOICE=$'\033[1;33m'
+  C_VALUE=$'\033[1;32m'
+  C_WARN=$'\033[1;31m'
+  C_INFO=$'\033[1;34m'
+else
+  C_RESET=''
+  C_PROMPT=''
+  C_CHOICE=''
+  C_VALUE=''
+  C_WARN=''
+  C_INFO=''
+fi
+
+info() {
+  printf '%s%s%s\n' "$C_INFO" "$1" "$C_RESET"
+}
+
+warn() {
+  printf '%s%s%s\n' "$C_WARN" "$1" "$C_RESET" >&2
+}
+
+selected() {
+  printf '%s%s%s\n' "$C_VALUE" "$1" "$C_RESET"
+}
+
+prompt_line() {
+  local text="$1"
+  printf '%s%s%s' "$C_PROMPT" "$text" "$C_RESET"
+}
+
 prompt_yes_no() {
   local prompt="$1"
   local default="${2:-Y}"
   local reply
 
-  read -r -p "$prompt" reply
-  reply="${reply:-$default}"
-  [[ "$reply" =~ ^[Yy]$ ]]
-}
-
-prompt_ssh_auth_mode() {
-  local mode
-
   while true; do
-    read -r -p "Choose SSH authentication mode [password/key/both] (default: key): " mode
-    mode="${mode:-key}"
+    prompt_line "${prompt%: } ${C_CHOICE}[Y/n]${C_RESET} ${C_CHOICE}(default: ${default})${C_RESET}: "
+    read -r reply
+    reply="${reply:-$default}"
 
-    case "$mode" in
-      password|key|both)
-        echo "$mode"
+    case "$reply" in
+      Y|y|N|n)
+        [[ "$reply" =~ ^[Yy]$ ]]
         return 0
         ;;
       *)
-        echo "Please enter: password, key, or both."
+        warn "Please enter Y or N."
         ;;
     esac
   done
+}
+
+prompt_ssh_auth_mode() {
+  local mode_choice
+
+  while true; do
+    echo "1. Password"
+    echo "2. SSH Key"
+    echo "3. Both"
+    prompt_line "Choose SSH authentication mode ${C_CHOICE}[1/2/3]${C_RESET} ${C_CHOICE}(default: 2)${C_RESET}: "
+    read -r mode_choice
+    mode_choice="${mode_choice:-2}"
+
+    case "$mode_choice" in
+      1)
+        echo "password"
+        return 0
+        ;;
+      2)
+        echo "key"
+        return 0
+        ;;
+      3)
+        echo "both"
+        return 0
+        ;;
+      *)
+        warn "Please enter 1, 2, or 3."
+        ;;
+    esac
+  done
+}
+
+prompt_key_setup_mode() {
+  local key_choice
+
+  while true; do
+    echo "1. Use existing public key"
+    echo "2. Generate a temporary keypair on this server"
+    prompt_line "Choose key setup mode ${C_CHOICE}[1/2]${C_RESET} ${C_CHOICE}(default: 1)${C_RESET}: "
+    read -r key_choice
+    key_choice="${key_choice:-1}"
+
+    case "$key_choice" in
+      1|2)
+        echo "$key_choice"
+        return 0
+        ;;
+      *)
+        warn "Please choose 1 or 2."
+        ;;
+    esac
+  done
+}
+
+prompt_input() {
+  local prompt="$1"
+  local reply
+  prompt_line "$prompt"
+  read -r reply
+  printf '%s' "$reply"
 }
 
 get_user_home() {
@@ -74,10 +162,10 @@ generate_server_keypair() {
   local archive_entry
 
   timestamp="$(date +%Y%m%d-%H%M%S)"
-  output_dir="$SCRIPT_DIR/generated-keys/${server_label}-${timestamp}"
+  output_dir="$ROOT_HOME/generated-keys/${server_label}-${timestamp}"
   private_key="$output_dir/id_ed25519"
   public_key="${private_key}.pub"
-  archive_file="$SCRIPT_DIR/generated-keys.tar.gz"
+  archive_file="$ROOT_HOME/generated-keys.tar.gz"
   archive_entry="generated-keys/${server_label}-${timestamp}"
 
   mkdir -p "$output_dir"
@@ -89,18 +177,18 @@ generate_server_keypair() {
   GENERATED_KEY_ARCHIVE="$archive_file"
 
   rm -f "$archive_file"
-  tar -czf "$archive_file" -C "$SCRIPT_DIR" "$archive_entry"
+  tar -czf "$archive_file" -C "$ROOT_HOME" "$archive_entry"
   rm -rf "$output_dir"
 
-  printf '\nTemporary SSH keypair generated on this server:\n' >&2
-  printf 'Archive: %s\n' "$archive_file" >&2
-  printf 'Download this archive, extract it locally, and remove it from the VPS after verification.\n\n' >&2
+  printf '\n%sTemporary SSH keypair generated on this server:%s\n' "$C_INFO" "$C_RESET" >&2
+  printf '%sArchive:%s %s\n' "$C_INFO" "$C_RESET" "$archive_file" >&2
+  printf '%sDownload this archive, extract it locally, and remove it from the VPS after verification.%s\n\n' "$C_INFO" "$C_RESET" >&2
 
   tar -xOf "$archive_file" "${archive_entry}/id_ed25519.pub"
 }
 
 echo "=========================================="
-echo "FINAL CONCEPT VPS BOOTSTRAP"
+printf '%sFINAL CONCEPT VPS BOOTSTRAP%s\n' "$C_INFO" "$C_RESET"
 echo ""
 echo "This script is intended for first-run setup on a fresh Debian/Ubuntu VPS."
 echo "It can optionally:"
@@ -114,12 +202,12 @@ echo "Do not close this session until you verify SSH access works."
 echo "=========================================="
 
 if [[ "${EUID}" -ne 0 ]]; then
-  echo "Please run as root."
+  warn "Please run as root."
   exit 1
 fi
 
 if ! command -v apt >/dev/null 2>&1; then
-  echo "This script currently supports Debian/Ubuntu only."
+  warn "This script currently supports Debian/Ubuntu only."
   exit 1
 fi
 
@@ -128,16 +216,16 @@ if [[ -r /etc/os-release ]]; then
   source /etc/os-release
   OS="${ID:-}"
 else
-  echo "Unable to detect operating system."
+  warn "Unable to detect operating system."
   exit 1
 fi
 
 if [[ "$OS" != "ubuntu" && "$OS" != "debian" ]]; then
-  echo "This script currently supports Debian/Ubuntu only."
+  warn "This script currently supports Debian/Ubuntu only."
   exit 1
 fi
 
-echo "=== Remote Server Setup ==="
+info "=== Remote Server Setup ==="
 
 if prompt_yes_no "Run apt update && apt upgrade now? [Y/n]: " "Y"; then
   apt update
@@ -156,9 +244,9 @@ if prompt_yes_no "Change root password? [Y/n]: " "Y"; then
     echo
 
     if [[ "$P1" != "$P2" ]]; then
-      echo "Passwords do not match."
+      warn "Passwords do not match."
     elif [[ ${#P1} -lt 8 ]]; then
-      echo "Password must be at least 8 characters."
+      warn "Password must be at least 8 characters."
     else
       echo "root:$P1" | chpasswd
       unset P1 P2
@@ -167,13 +255,18 @@ if prompt_yes_no "Change root password? [Y/n]: " "Y"; then
   done
 fi
 
-read -r -p "Set timezone? [Enter to use default Asia/Manila]: " TZ
-TZ="${TZ:-Asia/Manila}"
-timedatectl set-timezone "$TZ"
-echo "Timezone set to $TZ"
+while true; do
+  TZ="$(prompt_input "Set timezone ${C_CHOICE}[Enter for Asia/Manila]${C_RESET}: ")"
+  TZ="${TZ:-Asia/Manila}"
+  if timedatectl set-timezone "$TZ" >/dev/null 2>&1; then
+    selected "Timezone set to $TZ"
+    break
+  fi
+  warn "Invalid timezone. Try values like Asia/Manila or America/Los_Angeles."
+done
 
 SSH_AUTH_MODE="$(prompt_ssh_auth_mode)"
-echo "SSH authentication mode: $SSH_AUTH_MODE"
+selected "SSH authentication mode: $SSH_AUTH_MODE"
 
 CREATE_USER="N"
 USERNAME=""
@@ -187,7 +280,7 @@ if prompt_yes_no "Create non-root user? [Y/n]: " "Y"; then
     read -r -p "Username: " USERNAME
 
     if [[ -z "$USERNAME" ]]; then
-      echo "Username cannot be empty."
+      warn "Username cannot be empty."
     elif id "$USERNAME" >/dev/null 2>&1; then
       if prompt_yes_no "User already exists. Reuse this user? [Y/n]: " "Y"; then
         break
@@ -218,7 +311,7 @@ if [[ "$CREATE_USER" == "Y" ]]; then
     DISABLE_ROOT="Y"
   fi
 else
-  echo "No non-root user exists. Root SSH login will remain enabled."
+  info "No non-root user exists. Root SSH login will remain enabled."
 fi
 
 if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
@@ -229,19 +322,16 @@ if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
     KEY_INSTALL_TARGETS+=("root")
   fi
 
-  echo "SSH key setup is required for the selected auth mode."
-  echo "1. Use existing public key"
-  echo "2. Generate a temporary keypair on this server"
+  info "SSH key setup is required for the selected auth mode."
 
   while true; do
-    read -r -p "Choose key setup mode [1/2] (default: 1): " KEY_MODE
-    KEY_MODE="${KEY_MODE:-1}"
+    KEY_MODE="$(prompt_key_setup_mode)"
 
     if [[ "$KEY_MODE" == "1" ]]; then
-      echo "Paste SSH public key:"
+      info "Paste SSH public key:"
       read -r PUBKEY
       if [[ -z "$PUBKEY" || ! "$PUBKEY" =~ ^ssh- ]]; then
-        echo "Invalid SSH public key."
+        warn "Invalid SSH public key."
         continue
       fi
       for KEY_TARGET in "${KEY_INSTALL_TARGETS[@]}"; do
@@ -255,8 +345,6 @@ if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
         install_public_key "$KEY_TARGET" "$PUBKEY"
       done
       break
-    else
-      echo "Please choose 1 or 2."
     fi
   done
 fi
@@ -264,12 +352,12 @@ fi
 SSH_PORT=22
 if prompt_yes_no "Change SSH port? [y/N]: " "N"; then
   while true; do
-    read -r -p "Enter new SSH port (1024-65535): " PORT
+    PORT="$(prompt_input "Enter new SSH port ${C_CHOICE}[1024-65535]${C_RESET}: ")"
     if [[ "$PORT" =~ ^[0-9]+$ ]] && [[ "$PORT" -ge 1024 ]] && [[ "$PORT" -le 65535 ]]; then
       SSH_PORT="$PORT"
       break
     fi
-    echo "Invalid port. Must be 1024-65535."
+    warn "Invalid port. Must be 1024-65535."
   done
 fi
 
@@ -341,10 +429,10 @@ if [[ "$SSH_PORT" != "22" ]]; then
   ufw deny 22/tcp
 fi
 ufw --force enable
-echo "UFW configured."
+selected "UFW configured."
 
 if command -v docker >/dev/null 2>&1; then
-  echo "Docker already installed."
+  info "Docker already installed."
 else
   if prompt_yes_no "Install Docker? [Y/n]: " "Y"; then
     apt install -y ca-certificates curl gnupg
@@ -382,9 +470,9 @@ EOF
 fi
 
 if command -v docker >/dev/null 2>&1; then
-  echo "Docker version: $(docker --version)"
+  selected "Docker version: $(docker --version)"
   if docker compose version >/dev/null 2>&1; then
-    echo "Docker Compose plugin: $(docker compose version --short)"
+    selected "Docker Compose plugin: $(docker compose version --short)"
   fi
 fi
 
@@ -440,4 +528,8 @@ if [[ "$CREATE_USER" == "Y" ]]; then
   echo "- Re-login before using Docker so new group membership applies"
 fi
 echo "- Inspect SSH drop-in if needed: $SSHD_DROPIN_FILE"
+if [[ -n "$GENERATED_KEY_ARCHIVE" ]]; then
+  echo "- Download archive: scp -P YOUR_PORT root@YOUR_SERVER_IP:$GENERATED_KEY_ARCHIVE ."
+  echo "- Delete archive after verification: rm $GENERATED_KEY_ARCHIVE"
+fi
 echo "================================="
