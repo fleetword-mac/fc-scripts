@@ -580,8 +580,7 @@ if prompt_yes_no "Allow HTTP/HTTPS through UFW?" "Y"; then
   ufw allow 80/tcp
   ufw allow 443/tcp
 fi
-ufw --force enable
-selected "UFW configured."
+selected "UFW rules configured. UFW will be enabled when you run the final reboot command."
 
 if command -v docker >/dev/null 2>&1; then
   info "Docker already installed."
@@ -637,6 +636,7 @@ summary_item "SSH auth mode: $SSH_AUTH_MODE"
 summary_item "SSH port: $SSH_PORT"
 summary_item "SSH config drop-in: $SSHD_DROPIN_FILE"
 summary_item "Timezone: $TZ"
+summary_item "UFW status: configured, not yet enabled"
 
 if [[ "$CREATE_USER" == "Y" ]]; then
   summary_item "Non-root user created: $USERNAME"
@@ -693,8 +693,8 @@ else
 fi
 summary_step "3. Inspect the SSH drop-in if needed:"
 summary_command "cat $SSHD_DROPIN_FILE"
-summary_step "4. If everything looks correct, reboot the system so the new SSH configuration takes effect:"
-summary_command "reboot"
+summary_step "4. If everything looks correct, enable UFW and reboot the system so the new firewall and SSH configuration take effect:"
+summary_command "ufw --force enable && reboot"
 summary_step "5. After reboot, confirm by logging in again using the configured SSH method on port $SSH_PORT:"
 if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
   LOGIN_USER="root"
@@ -704,9 +704,5 @@ if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
   summary_command "ssh -i /path/to/id_ed25519 -p $SSH_PORT ${LOGIN_USER}@${SERVER_IP}"
 else
   summary_command "ssh -p $SSH_PORT root@${SERVER_IP}"
-fi
-if [[ "$CURRENT_SSH_PORT" != "$SSH_PORT" ]]; then
-  summary_step "6. After verifying the new SSH login works, you can close the old SSH port if needed:"
-  summary_command "ufw deny ${CURRENT_SSH_PORT}/tcp"
 fi
 echo "================================="
