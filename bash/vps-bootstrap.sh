@@ -63,6 +63,14 @@ summary_attention_heading() {
   printf '\n%s%s%s\n' "$C_CHOICE" "$1" "$C_RESET"
 }
 
+summary_step() {
+  printf '%s%s%s\n' "$C_VALUE" "$1" "$C_RESET"
+}
+
+summary_command() {
+  printf '%s%s%s\n' "$C_PROMPT" "$1" "$C_RESET"
+}
+
 prompt_line() {
   local text="$1"
   printf '%s%s%s' "$C_PROMPT" "$text" "$C_RESET" >&2
@@ -655,6 +663,13 @@ if [[ -f "$GENERATED_KEY_ARCHIVE" ]]; then
   summary_item "Generated key archive: $GENERATED_KEY_ARCHIVE"
 fi
 
+if [[ "${#INSTALLED_ITEMS[@]}" -gt 0 ]]; then
+  summary_heading "Installed During This Run"
+  for item in "${INSTALLED_ITEMS[@]}"; do
+    summary_item "$item"
+  done
+fi
+
 summary_attention_heading "Current Detected State"
 summary_warn "This reflects the SSH configuration currently active before restart. Your new SSH settings will only take effect after you restart the server."
 summary_item "Detected SSH auth mode: $CURRENT_SSH_AUTH_MODE"
@@ -663,28 +678,43 @@ summary_item "Detected root SSH login: $CURRENT_ROOT_LOGIN"
 summary_item "Detected SSH address family: $CURRENT_ADDRESS_FAMILY"
 
 summary_heading "Important"
-warn "Test SSH access before closing this session."
-warn "Reboot recommended after setup: reboot"
-if [[ "${#INSTALLED_ITEMS[@]}" -gt 0 ]]; then
-  summary_heading "Installed During This Run"
-  for item in "${INSTALLED_ITEMS[@]}"; do
-    summary_item "$item"
-  done
-fi
+summary_warn "Complete the next steps before closing this session."
 summary_attention_heading "Next Steps"
 if [[ -f "$GENERATED_KEY_ARCHIVE" ]]; then
-  summary_warn "Run the next command from a different local terminal, not from inside the current SSH session."
-  summary_item "1. Download and remove generated keys: scp -P $SSH_PORT root@${SERVER_IP}:$GENERATED_KEY_ARCHIVE . && ssh -p $SSH_PORT root@${SERVER_IP} 'rm -f $GENERATED_KEY_ARCHIVE'"
-  summary_item "2. If that command succeeds, SSH on port $SSH_PORT is reachable."
+  summary_step "1. Download and remove the generated keys. On a different terminal/shell, run the following commands:"
+  summary_command "scp -P $SSH_PORT root@${SERVER_IP}:$GENERATED_KEY_ARCHIVE . && ssh -p $SSH_PORT root@${SERVER_IP} 'rm -f $GENERATED_KEY_ARCHIVE'"
+  summary_step "2. If that command succeeds, SSH on port $SSH_PORT is reachable."
 else
-  summary_item "1. Open a different terminal on your local machine and test SSH on port $SSH_PORT."
+  summary_step "1. Open a different terminal/shell on your local machine and test SSH on port $SSH_PORT."
 fi
-summary_item "3. Confirm by logging in again and inspect the SSH drop-in if needed: $SSHD_DROPIN_FILE"
-if [[ "$CREATE_USER" == "Y" ]]; then
-  summary_item "4. If everything looks correct, run: reboot"
-  summary_item "5. After reboot, log in as $USERNAME using the configured SSH method."
+summary_step "3. Confirm by logging in again and inspect the SSH drop-in if needed:"
+if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
+  LOGIN_USER="root"
+  if [[ "$CREATE_USER" == "Y" && "$DISABLE_ROOT" == "Y" ]]; then
+    LOGIN_USER="$USERNAME"
+  fi
+  summary_command "ssh -i /path/to/id_ed25519 -p $SSH_PORT ${LOGIN_USER}@${SERVER_IP}"
 else
-  summary_item "4. If everything looks correct, run: reboot"
-  summary_item "5. After reboot, log in as root using the configured SSH method."
+  summary_command "ssh -p $SSH_PORT root@${SERVER_IP}"
+fi
+summary_command "cat $SSHD_DROPIN_FILE"
+if [[ "$CREATE_USER" == "Y" ]]; then
+  summary_step "4. If everything looks correct, reboot the system:"
+  summary_command "reboot"
+  summary_step "5. After reboot, log in as $USERNAME using the configured SSH method:"
+  if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
+    summary_command "ssh -i /path/to/id_ed25519 -p $SSH_PORT $USERNAME@${SERVER_IP}"
+  else
+    summary_command "ssh -p $SSH_PORT $USERNAME@${SERVER_IP}"
+  fi
+else
+  summary_step "4. If everything looks correct, reboot the system:"
+  summary_command "reboot"
+  summary_step "5. After reboot, log in as root using the configured SSH method:"
+  if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
+    summary_command "ssh -i /path/to/id_ed25519 -p $SSH_PORT root@${SERVER_IP}"
+  else
+    summary_command "ssh -p $SSH_PORT root@${SERVER_IP}"
+  fi
 fi
 echo "================================="
