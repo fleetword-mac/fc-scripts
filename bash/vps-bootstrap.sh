@@ -52,6 +52,10 @@ prompt_option() {
   printf '%s%s%s\n' "$C_CHOICE" "$1" "$C_RESET" >&2
 }
 
+prompt_section() {
+  printf '\n%s%s%s\n' "$C_INFO" "$1" "$C_RESET" >&2
+}
+
 prompt_yes_no() {
   local prompt="$1"
   local default="${2:-Y}"
@@ -80,9 +84,13 @@ prompt_ssh_auth_mode() {
   local mode_choice
 
   while true; do
+    prompt_section "Authentication Modes"
     prompt_option "1. Password"
+    printf '   Keep SSH password login enabled and do not require a public key.\n' >&2
     prompt_option "2. SSH Key"
+    printf '   Use public key authentication only and disable SSH password login.\n' >&2
     prompt_option "3. Both"
+    printf '   Allow both SSH password login and public key authentication.\n' >&2
     prompt_line "Choose SSH authentication mode ${C_CHOICE}[1/2/3]${C_RESET} ${C_CHOICE}(default: 2)${C_RESET}: "
     read -r mode_choice
     mode_choice="${mode_choice:-2}"
@@ -111,8 +119,11 @@ prompt_key_setup_mode() {
   local key_choice
 
   while true; do
+    prompt_section "SSH Key Setup"
     prompt_option "1. Use existing public key"
+    printf '   Paste a public key that already exists on your local machine.\n' >&2
     prompt_option "2. Generate a temporary keypair on this server"
+    printf '   Create a temporary keypair on the VPS, package it as an archive, and download it after setup.\n' >&2
     prompt_line "Choose key setup mode ${C_CHOICE}[1/2]${C_RESET} ${C_CHOICE}(default: 1)${C_RESET}: "
     read -r key_choice
     key_choice="${key_choice:-1}"
