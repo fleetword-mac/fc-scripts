@@ -43,6 +43,14 @@ selected() {
   printf '%s%s%s\n' "$C_VALUE" "$1" "$C_RESET"
 }
 
+summary_heading() {
+  printf '\n%s%s%s\n' "$C_INFO" "$1" "$C_RESET"
+}
+
+summary_item() {
+  printf '%s- %s%s\n' "$C_VALUE" "$1" "$C_RESET"
+}
+
 prompt_line() {
   local text="$1"
   printf '%s%s%s' "$C_PROMPT" "$text" "$C_RESET" >&2
@@ -533,62 +541,59 @@ systemctl restart ssh || systemctl restart sshd
 echo "================================="
 echo "Setup complete."
 echo ""
-echo "SSH auth mode: $SSH_AUTH_MODE"
-echo "SSH port: $SSH_PORT"
-echo "SSH config drop-in: $SSHD_DROPIN_FILE"
-echo "Timezone: $TZ"
+summary_heading "Configuration Summary"
+summary_item "SSH auth mode: $SSH_AUTH_MODE"
+summary_item "SSH port: $SSH_PORT"
+summary_item "SSH config drop-in: $SSHD_DROPIN_FILE"
+summary_item "Timezone: $TZ"
 
 if [[ "$CREATE_USER" == "Y" ]]; then
-  echo "Non-root user created: $USERNAME"
+  summary_item "Non-root user created: $USERNAME"
   if [[ "$ADD_SUDO" == "Y" ]]; then
-    echo "User has sudo privileges: yes"
+    summary_item "User has sudo privileges: yes"
   else
-    echo "User has sudo privileges: no"
+    summary_item "User has sudo privileges: no"
   fi
 else
-  echo "No non-root user was created."
+  summary_item "No non-root user was created."
 fi
 
 if [[ "$DISABLE_ROOT" == "Y" ]]; then
-  echo "Root SSH login: disabled"
+  summary_item "Root SSH login: disabled"
 else
-  echo "Root SSH login: enabled"
+  summary_item "Root SSH login: enabled"
 fi
 
 if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
-  echo "SSH key installed for: ${KEY_INSTALL_TARGETS[*]}"
+  summary_item "SSH key installed for: ${KEY_INSTALL_TARGETS[*]}"
 fi
 
 if [[ -n "$GENERATED_KEY_DIR" ]]; then
-  echo "Generated key archive: $GENERATED_KEY_ARCHIVE"
+  summary_item "Generated key archive: $GENERATED_KEY_ARCHIVE"
 fi
 
-echo ""
-echo "IMPORTANT:"
-echo "- Test SSH access before closing this session."
-echo "- If you generated keys on the server, copy the archive off immediately and delete it from the VPS after verification."
-echo "- Reboot recommended: run 'reboot'"
+summary_heading "Important"
+warn "Test SSH access before closing this session."
+warn "Reboot recommended after setup: reboot"
 if [[ "${#INSTALLED_ITEMS[@]}" -gt 0 ]]; then
-  echo ""
-  echo "INSTALLED DURING THIS RUN:"
+  summary_heading "Installed During This Run"
   for item in "${INSTALLED_ITEMS[@]}"; do
-    echo "- $item"
+    summary_item "$item"
   done
 fi
-echo ""
-echo "NEXT STEPS:"
+summary_heading "Next Steps"
 if [[ "$CREATE_USER" == "Y" ]]; then
-  echo "- Reconnect using user: $USERNAME"
+  summary_item "Reconnect using user: $USERNAME"
 else
-  echo "- Reconnect using root"
+  summary_item "Reconnect using root"
 fi
-echo "- Confirm SSH works on port: $SSH_PORT"
+summary_item "Confirm SSH works on port: $SSH_PORT"
 if [[ "$CREATE_USER" == "Y" ]]; then
-  echo "- Re-login before using Docker so new group membership applies"
+  summary_item "Re-login before using Docker so new group membership applies"
 fi
-echo "- Inspect SSH drop-in if needed: $SSHD_DROPIN_FILE"
+summary_item "Inspect SSH drop-in if needed: $SSHD_DROPIN_FILE"
 if [[ -n "$GENERATED_KEY_ARCHIVE" ]]; then
-  echo "- Download archive: scp -P YOUR_PORT root@YOUR_SERVER_IP:$GENERATED_KEY_ARCHIVE ."
-  echo "- Delete archive after verification: rm $GENERATED_KEY_ARCHIVE"
+  summary_item "Download generated keys: scp -P $SSH_PORT root@YOUR_SERVER_IP:$GENERATED_KEY_ARCHIVE ."
+  summary_item "Delete archive after verification: rm $GENERATED_KEY_ARCHIVE"
 fi
 echo "================================="
