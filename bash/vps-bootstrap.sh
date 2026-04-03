@@ -214,7 +214,7 @@ generate_server_keypair() {
 }
 
 echo "=========================================="
-printf '%sFINAL CONCEPT VPS BOOTSTRAP%s\n' "$C_INFO" "$C_RESET"
+printf '%sFINALCONCEPT VPS BOOTSTRAP%s\n' "$C_INFO" "$C_RESET"
 echo ""
 echo "This script is intended for first-run setup on a fresh Debian/Ubuntu VPS."
 echo "It can optionally:"
@@ -282,15 +282,30 @@ if prompt_yes_no "Change root password? [Y/n]: " "Y"; then
   done
 fi
 
-while true; do
-  TZ="$(prompt_input "Set timezone ${C_CHOICE}[Enter for Asia/Manila]${C_RESET}: ")"
-  TZ="${TZ:-Asia/Manila}"
-  if timedatectl list-timezones | grep -Fxq "$TZ" && timedatectl set-timezone "$TZ" >/dev/null 2>&1; then
-    selected "Timezone set to $TZ"
-    break
-  fi
-  warn "Invalid timezone. Try values like Asia/Manila or America/Los_Angeles."
-done
+CURRENT_TZ="$(timedatectl show --property=Timezone --value 2>/dev/null || true)"
+CURRENT_TZ="${CURRENT_TZ:-Asia/Manila}"
+TZ="$CURRENT_TZ"
+
+if prompt_yes_no "Change timezone? Current: ${CURRENT_TZ} [Y/n]: " "N"; then
+  while true; do
+    TZ="$(prompt_input "Enter timezone ${C_CHOICE}[type back to keep ${CURRENT_TZ}]${C_RESET}: ")"
+
+    if [[ "$TZ" == "back" || "$TZ" == "BACK" ]]; then
+      TZ="$CURRENT_TZ"
+      selected "Keeping existing timezone: $CURRENT_TZ"
+      break
+    fi
+
+    TZ="${TZ:-$CURRENT_TZ}"
+    if timedatectl list-timezones | grep -Fxq "$TZ" && timedatectl set-timezone "$TZ" >/dev/null 2>&1; then
+      selected "Timezone set to $TZ"
+      break
+    fi
+    warn "Invalid timezone. Try values like Asia/Manila or America/Los_Angeles, or type back."
+  done
+else
+  selected "Keeping existing timezone: $CURRENT_TZ"
+fi
 
 SSH_AUTH_MODE="$(prompt_ssh_auth_mode)"
 selected "SSH authentication mode: $SSH_AUTH_MODE"
