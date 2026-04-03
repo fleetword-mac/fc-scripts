@@ -45,7 +45,7 @@ selected() {
 
 prompt_line() {
   local text="$1"
-  printf '%s%s%s' "$C_PROMPT" "$text" "$C_RESET"
+  printf '%s%s%s' "$C_PROMPT" "$text" "$C_RESET" >&2
 }
 
 prompt_yes_no() {
