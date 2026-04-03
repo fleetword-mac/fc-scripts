@@ -628,8 +628,6 @@ if command -v docker >/dev/null 2>&1; then
   fi
 fi
 
-systemctl restart ssh || systemctl restart sshd
-
 echo "================================="
 summary_attention_heading "Setup Complete"
 summary_heading "Configuration Summary"
@@ -678,16 +676,20 @@ summary_item "Detected root SSH login: $CURRENT_ROOT_LOGIN"
 summary_item "Detected SSH address family: $CURRENT_ADDRESS_FAMILY"
 
 summary_heading "Important"
-summary_warn "Complete the next steps before closing this session."
+summary_warn "Complete the next steps before closing this session. The new SSH configuration will not take effect until after reboot."
 summary_attention_heading "Next Steps"
 if [[ -f "$GENERATED_KEY_ARCHIVE" ]]; then
   summary_step "1. Download and remove the generated keys. On a different terminal/shell, run the following commands:"
   summary_command "scp -P $SSH_PORT root@${SERVER_IP}:$GENERATED_KEY_ARCHIVE . && ssh -p $SSH_PORT root@${SERVER_IP} 'rm -f $GENERATED_KEY_ARCHIVE'"
-  summary_step "2. If that command succeeds, SSH on port $SSH_PORT is reachable."
+  summary_step "2. If that command succeeds, you have downloaded the key archive and removed it from the server."
 else
-  summary_step "1. Open a different terminal/shell on your local machine and test SSH on port $SSH_PORT."
+  summary_step "1. Open a different terminal/shell on your local machine and prepare to test the new SSH configuration after reboot."
 fi
-summary_step "3. Confirm by logging in again and inspect the SSH drop-in if needed:"
+summary_step "3. Inspect the SSH drop-in if needed:"
+summary_command "cat $SSHD_DROPIN_FILE"
+summary_step "4. If everything looks correct, reboot the system so the new SSH configuration takes effect:"
+summary_command "reboot"
+summary_step "5. After reboot, confirm by logging in again using the configured SSH method:"
 if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
   LOGIN_USER="root"
   if [[ "$CREATE_USER" == "Y" && "$DISABLE_ROOT" == "Y" ]]; then
@@ -696,25 +698,5 @@ if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
   summary_command "ssh -i /path/to/id_ed25519 -p $SSH_PORT ${LOGIN_USER}@${SERVER_IP}"
 else
   summary_command "ssh -p $SSH_PORT root@${SERVER_IP}"
-fi
-summary_command "cat $SSHD_DROPIN_FILE"
-if [[ "$CREATE_USER" == "Y" ]]; then
-  summary_step "4. If everything looks correct, reboot the system:"
-  summary_command "reboot"
-  summary_step "5. After reboot, log in as $USERNAME using the configured SSH method:"
-  if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
-    summary_command "ssh -i /path/to/id_ed25519 -p $SSH_PORT $USERNAME@${SERVER_IP}"
-  else
-    summary_command "ssh -p $SSH_PORT $USERNAME@${SERVER_IP}"
-  fi
-else
-  summary_step "4. If everything looks correct, reboot the system:"
-  summary_command "reboot"
-  summary_step "5. After reboot, log in as root using the configured SSH method:"
-  if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
-    summary_command "ssh -i /path/to/id_ed25519 -p $SSH_PORT root@${SERVER_IP}"
-  else
-    summary_command "ssh -p $SSH_PORT root@${SERVER_IP}"
-  fi
 fi
 echo "================================="
