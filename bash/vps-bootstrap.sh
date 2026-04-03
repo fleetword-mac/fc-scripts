@@ -55,6 +55,10 @@ summary_item() {
   printf '%s- %s%s\n' "$C_VALUE" "$1" "$C_RESET"
 }
 
+summary_warn() {
+  printf '%s! %s%s\n' "$C_WARN" "$1" "$C_RESET"
+}
+
 prompt_line() {
   local text="$1"
   printf '%s%s%s' "$C_PROMPT" "$text" "$C_RESET" >&2
@@ -656,7 +660,9 @@ if [[ "$CREATE_USER" == "Y" ]]; then
 fi
 summary_item "Inspect SSH drop-in if needed: $SSHD_DROPIN_FILE"
 if [[ -f "$GENERATED_KEY_ARCHIVE" ]]; then
+  summary_warn "Run the next two commands from a different local terminal, not from inside the current SSH session."
   summary_item "Download generated keys: scp -P $SSH_PORT root@YOUR_SERVER_IP:$GENERATED_KEY_ARCHIVE ."
-  summary_item "Delete archive after verification: rm $GENERATED_KEY_ARCHIVE"
+  summary_item "Delete archive after verification: ssh -p $SSH_PORT root@YOUR_SERVER_IP 'rm -f $GENERATED_KEY_ARCHIVE'"
 fi
+summary_warn "After SSH access is confirmed, reboot the server: reboot"
 echo "================================="
