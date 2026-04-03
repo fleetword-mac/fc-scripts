@@ -48,6 +48,10 @@ prompt_line() {
   printf '%s%s%s' "$C_PROMPT" "$text" "$C_RESET" >&2
 }
 
+prompt_option() {
+  printf '%s%s%s\n' "$C_CHOICE" "$1" "$C_RESET" >&2
+}
+
 prompt_yes_no() {
   local prompt="$1"
   local default="${2:-Y}"
@@ -76,9 +80,9 @@ prompt_ssh_auth_mode() {
   local mode_choice
 
   while true; do
-    echo "1. Password"
-    echo "2. SSH Key"
-    echo "3. Both"
+    prompt_option "1. Password"
+    prompt_option "2. SSH Key"
+    prompt_option "3. Both"
     prompt_line "Choose SSH authentication mode ${C_CHOICE}[1/2/3]${C_RESET} ${C_CHOICE}(default: 2)${C_RESET}: "
     read -r mode_choice
     mode_choice="${mode_choice:-2}"
@@ -107,8 +111,8 @@ prompt_key_setup_mode() {
   local key_choice
 
   while true; do
-    echo "1. Use existing public key"
-    echo "2. Generate a temporary keypair on this server"
+    prompt_option "1. Use existing public key"
+    prompt_option "2. Generate a temporary keypair on this server"
     prompt_line "Choose key setup mode ${C_CHOICE}[1/2]${C_RESET} ${C_CHOICE}(default: 1)${C_RESET}: "
     read -r key_choice
     key_choice="${key_choice:-1}"
@@ -262,7 +266,7 @@ fi
 while true; do
   TZ="$(prompt_input "Set timezone ${C_CHOICE}[Enter for Asia/Manila]${C_RESET}: ")"
   TZ="${TZ:-Asia/Manila}"
-  if timedatectl set-timezone "$TZ" >/dev/null 2>&1; then
+  if timedatectl list-timezones | grep -Fxq "$TZ" && timedatectl set-timezone "$TZ" >/dev/null 2>&1; then
     selected "Timezone set to $TZ"
     break
   fi
