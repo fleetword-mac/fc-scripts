@@ -18,6 +18,9 @@ GENERATED_PUBLIC_KEY=""
 GENERATED_KEY_ARCHIVE=""
 KEY_INSTALL_TARGETS=()
 INSTALLED_ITEMS=()
+UFW_DESIRED="N"
+UFW_CONFIGURED="N"
+UFW_AVAILABLE="N"
 
 if [[ -t 1 ]]; then
   C_RESET=$'\033[0m'
@@ -565,22 +568,37 @@ else
   /usr/sbin/sshd -t
 fi
 
-if ! command -v ufw >/dev/null 2>&1; then
-  apt install -y ufw
-  INSTALLED_ITEMS+=("ufw")
-fi
+if prompt_yes_no "Configure UFW firewall rules?" "Y"; then
+  UFW_DESIRED="Y"
 
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow "$SSH_PORT"/tcp
-if [[ "$CURRENT_SSH_PORT" != "$SSH_PORT" ]]; then
-  ufw allow "$CURRENT_SSH_PORT"/tcp
+  if command -v ufw >/dev/null 2>&1; then
+    UFW_AVAILABLE="Y"
+  else
+    if apt install -y ufw; then
+      INSTALLED_ITEMS+=("ufw")
+      UFW_AVAILABLE="Y"
+    else
+      warn "UFW could not be installed on this server. Continuing without firewall configuration."
+      apt purge -y ufw >/dev/null 2>&1 || dpkg --remove --force-remove-reinstreq ufw >/dev/null 2>&1 || true
+      apt -f install -y >/dev/null 2>&1 || true
+    fi
+  fi
+
+  if [[ "$UFW_AVAILABLE" == "Y" ]]; then
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow "$SSH_PORT"/tcp
+    if [[ "$CURRENT_SSH_PORT" != "$SSH_PORT" ]]; then
+      ufw allow "$CURRENT_SSH_PORT"/tcp
+    fi
+    if prompt_yes_no "Allow HTTP/HTTPS through UFW?" "Y"; then
+      ufw allow 80/tcp
+      ufw allow 443/tcp
+    fi
+    UFW_CONFIGURED="Y"
+    selected "UFW rules configured. UFW will be enabled when you run the final reboot command."
+  fi
 fi
-if prompt_yes_no "Allow HTTP/HTTPS through UFW?" "Y"; then
-  ufw allow 80/tcp
-  ufw allow 443/tcp
-fi
-selected "UFW rules configured. UFW will be enabled when you run the final reboot command."
 
 if command -v docker >/dev/null 2>&1; then
   info "Docker already installed."
@@ -636,7 +654,13 @@ summary_item "SSH auth mode: $SSH_AUTH_MODE"
 summary_item "SSH port: $SSH_PORT"
 summary_item "SSH config drop-in: $SSHD_DROPIN_FILE"
 summary_item "Timezone: $TZ"
-summary_item "UFW status: configured, not yet enabled"
+if [[ "$UFW_CONFIGURED" == "Y" ]]; then
+  summary_item "UFW status: configured, not yet enabled"
+elif [[ "$UFW_DESIRED" == "Y" ]]; then
+  summary_item "UFW status: requested, but not configured"
+else
+  summary_item "UFW status: skipped"
+fi
 
 if [[ "$CREATE_USER" == "Y" ]]; then
   summary_item "Non-root user created: $USERNAME"
@@ -691,10 +715,20 @@ if [[ -f "$GENERATED_KEY_ARCHIVE" ]]; then
 else
   summary_step "1. Open a different terminal/shell on your local machine and prepare to test the new SSH configuration after reboot."
 fi
-summary_step "3. Inspect the SSH drop-in if needed:"
+summary_step "3. Log back in and inspect the SSH drop-in if needed:"
+if [[ "$CURRENT_SSH_PORT" == "22" ]]; then
+  summary_command "ssh root@${SERVER_IP}"
+else
+  summary_command "ssh -p $CURRENT_SSH_PORT root@${SERVER_IP}"
+fi
 summary_command "cat $SSHD_DROPIN_FILE"
-summary_step "4. If everything looks correct, enable UFW and reboot the system so the new firewall and SSH configuration take effect:"
-summary_command "ufw --force enable && reboot"
+if [[ "$UFW_CONFIGURED" == "Y" ]]; then
+  summary_step "4. If everything looks correct, enable UFW and reboot the system so the new firewall and SSH configuration take effect:"
+  summary_command "ufw --force enable && reboot"
+else
+  summary_step "4. If everything looks correct, reboot the system so the new SSH configuration takes effect:"
+  summary_command "reboot"
+fi
 summary_step "5. After reboot, confirm by logging in again using the configured SSH method on port $SSH_PORT:"
 if [[ "$SSH_AUTH_MODE" == "key" || "$SSH_AUTH_MODE" == "both" ]]; then
   LOGIN_USER="root"
