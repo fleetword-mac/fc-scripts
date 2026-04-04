@@ -1,0 +1,80 @@
+services:
+  postgres:
+    image: postgres:16.6
+    container_name: fc_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - platform
+
+  nocodb:
+    image: nocodb/nocodb:latest
+    container_name: fc_nocodb
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NC_DB: "pg://postgres:5432?u=${POSTGRES_USER}&p=${POSTGRES_PASSWORD}&d=${POSTGRES_DB}"
+      NC_PUBLIC_URL: ${NOCODB_PUBLIC_URL}
+      TZ: ${TZ}
+    volumes:
+      - nocodb_data:/usr/app/data
+    networks:
+      - platform
+
+  validator:
+    image: php:8.3-cli
+    container_name: fc_validator
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "php -S 0.0.0.0:8000 -t public"
+    volumes:
+      - ./validator:/app
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: ${VALIDATOR_PUBLIC_URL}
+      TZ: ${TZ}
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${POSTGRES_DB}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - platform
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: fc_cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - nocodb
+      - validator
+    networks:
+      - platform
+
+volumes:
+  postgres_data:
+  nocodb_data:
+
+networks:
+  platform:
+    driver: bridge

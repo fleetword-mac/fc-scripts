@@ -1,4 +1,4 @@
-# Final Concept Scripts
+# FC Scripts
 
 Shared script and snippet library for Final Concept infrastructure, app work, and client operations.
 
@@ -21,6 +21,7 @@ This repository is a long-term home for:
 - [`sql/`](/Users/errolae-m4mini/Work/Machine%20Learning/Codex/Projects/Child%20Theme/Bricks/finalconcept-scripts/sql)
 - [`docs/`](/Users/errolae-m4mini/Work/Machine%20Learning/Codex/Projects/Child%20Theme/Bricks/finalconcept-scripts/docs)
 - [`templates/`](/Users/errolae-m4mini/Work/Machine%20Learning/Codex/Projects/Child%20Theme/Bricks/finalconcept-scripts/templates)
+- [`templates/apps/`](/Users/errolae-m4mini/Work/Machine%20Learning/Codex/Projects/Child%20Theme/Bricks/finalconcept-scripts/templates/apps)
 
 ## Suggested conventions
 
@@ -28,6 +29,7 @@ This repository is a long-term home for:
 - Keep copy-paste code fragments in `php/`, `js/`, `css/`, and `sql/`
 - Store setup guides and runbooks in `docs/`
 - Use `templates/` for reusable config files such as Docker, Nginx, systemd, or Cloudflare examples
+- Use `templates/apps/` for app-specific starter stacks such as Docker Compose and `.env` files
 
 ## First ideas
 
@@ -36,3 +38,4 @@ This repository is a long-term home for:
 - Cloudflare Tunnel setup notes
 - Postgres backup script
 - Laravel deploy checklist
+- app-specific Docker and env templates
