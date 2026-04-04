@@ -21,6 +21,7 @@ INSTALLED_ITEMS=()
 UFW_DESIRED="N"
 UFW_CONFIGURED="N"
 UFW_AVAILABLE="N"
+PREFLIGHT_ERRORS=()
 
 if [[ -t 1 ]]; then
   C_RESET=$'\033[0m'
@@ -239,6 +240,46 @@ detect_server_ip() {
   fi
 }
 
+add_preflight_error() {
+  PREFLIGHT_ERRORS+=("$1")
+}
+
+run_preflight_checks() {
+  local dpkg_audit_output=""
+  local installed_kernel=""
+  local candidate_kernel=""
+
+  if [[ -x /usr/share/debconf/frontend ]]; then
+    if ! /usr/share/debconf/frontend true >/dev/null 2>&1; then
+      add_preflight_error "debconf frontend is not healthy. Try: apt install --reinstall -y debconf perl-base perl-modules-5.36 perl libc6 && DEBIAN_FRONTEND=noninteractive dpkg --configure -a"
+    fi
+  fi
+
+  dpkg_audit_output="$(dpkg --audit 2>/dev/null || true)"
+  if [[ -n "${dpkg_audit_output//[[:space:]]/}" ]]; then
+    add_preflight_error "dpkg reports pending or broken packages. Try: DEBIAN_FRONTEND=noninteractive dpkg --configure -a && apt -f install -y"
+  fi
+
+  if ! apt-get check >/dev/null 2>&1; then
+    add_preflight_error "apt reports package dependency problems. Try: apt -f install -y && DEBIAN_FRONTEND=noninteractive dpkg --configure -a"
+  fi
+
+  installed_kernel="$(dpkg-query -W -f='${Version}' linux-image-amd64 2>/dev/null || true)"
+  candidate_kernel="$(apt-cache policy linux-image-amd64 2>/dev/null | awk '/Candidate:/ {print $2}')"
+  if [[ -n "$installed_kernel" && -n "$candidate_kernel" && "$candidate_kernel" != "(none)" && "$installed_kernel" != "$candidate_kernel" ]]; then
+    add_preflight_error "A newer Debian kernel package is available ($installed_kernel -> $candidate_kernel). Install it and reboot before continuing: apt install -y linux-image-amd64 linux-headers-amd64 && reboot"
+  fi
+
+  if [[ "${#PREFLIGHT_ERRORS[@]}" -gt 0 ]]; then
+    summary_attention_heading "Preflight Check Failed"
+    summary_warn "Resolve the following items before running the bootstrap:"
+    for item in "${PREFLIGHT_ERRORS[@]}"; do
+      summary_item "$item"
+    done
+    exit 1
+  fi
+}
+
 get_user_home() {
   getent passwd "$1" | cut -d: -f6
 }
@@ -348,6 +389,8 @@ CURRENT_ADDRESS_FAMILY="$(read_sshd_option "$SSHD_DROPIN_FILE" "AddressFamily" "
 CURRENT_SSH_AUTH_MODE="$(detect_ssh_auth_mode "$SSHD_DROPIN_FILE")"
 GENERATED_KEY_ARCHIVE="${ROOT_HOME}/generated-keys.tar.gz"
 SERVER_IP="$(detect_server_ip)"
+
+run_preflight_checks
 
 info "=== Remote Server Setup ==="
 
